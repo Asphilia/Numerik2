@@ -25,7 +25,6 @@ Q1 = np.array([[8,16,24,32,40,48,56,64],
         [56,64,72,80,88,96,104,112],
         [64,72,80,88,96,104,112,120]])
 
-Q2 = 
     
 def encode_quant(orig, quant):
     return (orig / quant).astype(np.int)
@@ -57,37 +56,54 @@ def decode_dct(orig, bx, by):
     ))
         
 # Load image
-lena = Image.open('lena.jpg')
-print(lena)
+testpic = Image.open('TestBild.jpg')
+print(testpic)
 plt.figure()
-plt.imshow(lena, cmap = plt.get_cmap('Greys_r'))
-x = np.array(lena)
+plt.imshow(testpic, cmap = plt.get_cmap('Greys_r'))
+picAr = np.array(testpic)
 
-quants = [1,2,4,10] # q values
-blocks = [(8,8)] # block size 8x8
-decs = []
-
-for qscale in quants:
-    for bx,by in blocks:
-        quant = (
-                ((Q * (qscale)))
+def quant1(V8,p):
+    
+    new_shape = (
+        V8.shape[0] // 8 * 8,
+        V8.shape[1] // 8 * 8
+    )
+    new = V8[
+        :new_shape[0],
+        :new_shape[1]
+    ].reshape((
+        new_shape[0] // 8,
+        8,
+        new_shape[1] // 8,
+        8
+    ))
+    enc = sfft.dct(new, norm='ortho')
+    '''
+    quant = (
+                (np.ones((8,8))
+                 .clip(-100,100)
+                 .reshape((1,8,1,8)))
+                )
+    '''
+    quant = (
+                ((Q1 * (p)))
                 .clip(-100, 100)  # to prevent clipping
-                .reshape((1, bx, 1, by))
+                .reshape((1,8,1,8))
             )
-        
-    enc = encode_dct(x,bx,by)
+    
     encq = encode_quant(enc, quant)
     decq = decode_quant(encq, quant)
-    dec = decode_dct(decq, bx, by)
-    
-    decs.append((dec,qscale))
-        
+    r = sfft.idct(decq,norm = 'ortho')
+    dec =r.reshape((
+        decq.shape[0]*8,
+        decq.shape[2]*8
+    ))
 
-for i in decs:
-    
-    reconstructed = Image.fromarray(i[0].astype(np.uint8),'L')
-    p = i[1]
+    reconstructed = Image.fromarray(dec.astype(np.uint8),'L')
     plt.figure()
-    plt.title(f'q = {p}')
     plt.imshow(reconstructed, cmap = plt.get_cmap('Greys_r'))
     plt.show()
+
+
+quant1(picAr,1)
+    

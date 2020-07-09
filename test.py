@@ -7,18 +7,37 @@ Created on Wed Jul  8 09:46:50 2020
 """
 
 #!/usr/bin/env python3
-import cv2
+import plotly.graph_objects as go
+import plotly.express as px
+import pandas as pd
 import numpy as np
-import scipy.fftpack as fftpack
-import zlib
-prev_16 = lambda x: x >> 4 << 4
+from PIL import Image
+import matplotlib.pyplot as plt
+import scipy.fftpack as sfft
+import plotly.express as px
 
+# Quantisierungsmatrix aus dem Lesetext
+Q1 = np.array([[8,16,24,32,40,48,56,64],
+        [16,24,32,40,48,56,64,72],
+        [24,32,40,48,56,64,72,80],
+        [32,40,48,56,64,72,80,88],
+        [40,48,56,64,72,80,88,96],
+        [48,56,64,72,80,88,96,104],
+        [56,64,72,80,88,96,104,112],
+        [64,72,80,88,96,104,112,120]])
+    
+# Q aus Aufgabe 2
+Q2 = np.array([[16,11,10,16,24,40,51,61],
+        [12,12,14,19,26,58,60,55],
+        [14,13,16,24,40,57,69,56],
+        [14,17,22,29,51,87,80,62],
+        [18,22,37,56,68,109,103,77],
+        [24,35,55,64,81,104,113,92],
+        [49,64,78,87,103,121,120,101],
+        [72,92,95,98,112,100,103,99]])
 
 def encode_quant(orig, quant):
-    # import code
-    # code.interact(local=vars())
     return (orig / quant).astype(np.int)
-
 
 def decode_quant(orig, quant):
     return (orig * quant).astype(float)
@@ -27,8 +46,7 @@ def decode_quant(orig, quant):
 def encode_dct(orig, bx, by):
     new_shape = (
         orig.shape[0] // bx * bx,
-        orig.shape[1] // by * by,
-        3
+        orig.shape[1] // by * by
     )
     new = orig[
         :new_shape[0],
@@ -37,46 +55,49 @@ def encode_dct(orig, bx, by):
         new_shape[0] // bx,
         bx,
         new_shape[1] // by,
-        by,
-        3
+        by
     ))
-    return fftpack.dctn(new, axes=[1,3], norm='ortho')
-
+    return sfft.dctn(new, axes=[1,3], norm='ortho')
 
 def decode_dct(orig, bx, by):
-    return fftpack.idctn(orig, axes=[1,3], norm='ortho'
+    return sfft.idctn(orig, axes=[1,3], norm='ortho'
     ).reshape((
         orig.shape[0]*bx,
-        orig.shape[2]*by,
-        3
+        orig.shape[2]*by
     ))
+        
+        
+# Load image
+lena = Image.open('lena.jpg')
+print(lena)
+plt.figure()
+plt.imshow(lena, cmap = plt.get_cmap('Greys_r'))
+x = np.array(lena)
 
+quants = [1,2,4,10] # q values
+blocks = [(8,8)] # block size 8x8
+decs = []
 
-def encode_zip(x):
-    return zlib.compress(x.astype(np.int8).tobytes())
-
-
-def decode_zip(orig, shape):
-    return np.frombuffer(zlib.decompress(orig), dtype=np.int8).astype(float).reshape(shape)
-
-
-if __name__ == '__main__':
-
-    im = cv2.imread("lena.jpg")
-    quants = [4] #[0.5, 1, 2, 5, 10]
-    blocks = [(8,8)] #[(2, 8), (8, 8), (16, 16), (32, 32), (200, 200)]
-    for qscale in quants:
-        for bx, by in blocks:
-
-            quant = (
-                (np.ones((bx, by)) * (qscale * qscale))
+for qscale in quants:
+    for bx,by in blocks:
+        quant = (
+                ((Q1 * (qscale)))
                 .clip(-100, 100)  # to prevent clipping
-                .reshape((1, bx, 1, by, 1))
+                .reshape((1, bx, 1, by))
             )
-            enc = encode_dct(im, bx, by)
-            encq = encode_quant(enc, quant)
-            encz = encode_zip(encq)
-            decz = decode_zip(encz, encq.shape)
-            decq = decode_quant(encq, quant)
-            dec = decode_dct(decq, bx, by)
-            cv2.imwrite("IMG_0108_recompressed_quant_{}_block_{}x{}.png".format(qscale, bx, by), dec.astype(np.uint8))
+        
+    enc = encode_dct(x,bx,by)
+    encq = encode_quant(enc, quant)
+    decq = decode_quant(encq, quant)
+    dec = decode_dct(decq, bx, by)
+    
+    decs.append((dec,qscale))
+
+for i in decs:
+    print(i[0].shape)
+    reconstructed = Image.fromarray(i[0].astype(np.uint8),'L')
+    p = i[1]
+    plt.figure()
+    plt.title(f'q = {p}')
+    plt.imshow(reconstructed, cmap = plt.get_cmap('Greys_r'))
+    plt.show()
